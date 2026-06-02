@@ -1,0 +1,878 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Meter System</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.x/tabler-icons.min.css"/>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,sans-serif;background:#F3F4F6;color:#111827;font-size:14px}
+
+/* LOGIN */
+#login-screen{position:fixed;inset:0;background:#F3F4F6;display:flex;align-items:center;justify-content:center;z-index:999}
+#login-screen.hidden{display:none}
+.login-box{background:#fff;border:1px solid #E5E7EB;border-radius:12px;padding:2rem;width:340px;box-shadow:0 4px 24px rgba(0,0,0,.08)}
+.login-title{font-size:18px;font-weight:700;text-align:center;margin-bottom:.25rem}
+.login-sub{font-size:12px;color:#6B7280;text-align:center;margin-bottom:1.5rem}
+.login-field{margin-bottom:.85rem}
+.login-field label{font-size:12px;font-weight:600;color:#374151;display:block;margin-bottom:4px}
+.login-field input{width:100%;padding:9px 11px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;outline:none}
+.login-field input:focus{border-color:#185FA5}
+.login-btn{width:100%;padding:10px;border:none;border-radius:8px;background:#185FA5;color:#fff;font-size:14px;font-weight:600;cursor:pointer;margin-top:.25rem}
+.login-btn:hover{background:#1450A3}
+.login-btn:disabled{opacity:.6;cursor:not-allowed}
+.login-error{font-size:12px;color:#EF4444;text-align:center;margin-top:.5rem;min-height:16px}
+
+/* LOADING */
+.loading-overlay{position:fixed;inset:0;background:rgba(255,255,255,.7);display:flex;align-items:center;justify-content:center;z-index:500}
+.loading-overlay.hidden{display:none}
+.spinner{width:32px;height:32px;border:3px solid #E5E7EB;border-top-color:#185FA5;border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* LAYOUT */
+.layout{display:flex;height:100vh;overflow:hidden;position:relative}
+.sidebar{width:220px;min-width:220px;background:#fff;border-right:1px solid #E5E7EB;display:flex;flex-direction:column;transition:width .22s,min-width .22s;overflow:visible;position:relative;z-index:50;flex-shrink:0}
+.sidebar.collapsed{width:56px;min-width:56px}
+.sb-head{height:52px;display:flex;align-items:center;gap:10px;padding:0 14px;border-bottom:1px solid #E5E7EB;flex-shrink:0}
+.sidebar.collapsed .sb-head{padding:0;justify-content:center}
+.sb-logo{width:32px;height:32px;border-radius:8px;background:#185FA5;display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden}
+.sb-logo img,.sb-logo i{width:32px;height:32px;object-fit:cover}
+.sb-ttl{font-size:13px;font-weight:600;white-space:nowrap;opacity:1;transition:opacity .15s}
+.sidebar.collapsed .sb-ttl{opacity:0;pointer-events:none;max-width:0;overflow:hidden}
+.sb-nav{flex:1;padding:10px 8px;display:flex;flex-direction:column;gap:4px;overflow:visible}
+.sidebar.collapsed .sb-nav{padding:10px 6px;align-items:center}
+.nav-section-lbl{font-size:10px;font-weight:600;color:#9CA3AF;padding:8px 10px 3px;text-transform:uppercase;letter-spacing:.06em;white-space:nowrap;opacity:1;transition:opacity .15s}
+.sidebar.collapsed .nav-section-lbl{opacity:0;height:0;padding:0;margin:0;overflow:hidden}
+.nav-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;cursor:pointer;border:none;background:transparent;width:100%;text-align:left;color:#4B5563;font-size:13px;transition:all .12s;white-space:nowrap}
+.sidebar.collapsed .nav-item{justify-content:center;padding:8px;width:40px;height:40px;position:relative;border-radius:10px}
+.nav-item:hover{background:#EFF6FF;color:#185FA5}
+.nav-item.active{background:#EFF6FF;color:#185FA5;font-weight:500}
+.nav-item i{font-size:20px;flex-shrink:0}
+.nav-lbl{opacity:1;transition:opacity .15s}
+.sidebar.collapsed .nav-lbl{opacity:0;max-width:0;overflow:hidden}
+.sb-foot{padding:10px 8px;border-top:1px solid #E5E7EB;display:flex;flex-direction:column;gap:4px}
+.sidebar.collapsed .sb-foot{padding:10px 6px;align-items:center}
+.tog-btn,.logout-btn{display:flex;align-items:center;gap:8px;width:100%;padding:7px 10px;border-radius:8px;border:none;background:transparent;cursor:pointer;color:#9CA3AF;font-size:12px;transition:all .12s;white-space:nowrap;font-family:Arial,sans-serif}
+.sidebar.collapsed .tog-btn,.sidebar.collapsed .logout-btn{justify-content:center;padding:8px;width:40px;height:40px;gap:0;position:relative;border-radius:10px}
+.tog-btn:hover,.logout-btn:hover{background:#EFF6FF;color:#185FA5}
+.tog-btn i{font-size:20px;transition:transform .22s;flex-shrink:0}
+.sidebar.collapsed .tog-btn i{transform:rotate(180deg)}
+.logout-btn i{font-size:20px;flex-shrink:0}
+.nav-lbl2{opacity:1;transition:opacity .15s}
+.sidebar.collapsed .nav-lbl2{opacity:0;max-width:0;overflow:hidden}
+/* Collapsed nav icon boxes */
+.sidebar.collapsed .nav-item{justify-content:center;padding:8px;width:44px;height:44px;position:relative;border-radius:10px;margin:0 auto}
+.sidebar.collapsed .nav-item .nav-icon-box{width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;background:#F3F4F6;font-size:18px;flex-shrink:0;transition:background .12s}
+.sidebar.collapsed .nav-item:hover .nav-icon-box{background:#DBEAFE}
+.sidebar.collapsed .nav-item.active .nav-icon-box{background:#DBEAFE}
+.sidebar.collapsed .tog-btn,.sidebar.collapsed .logout-btn{justify-content:center;padding:8px;width:44px;height:44px;gap:0;position:relative;border-radius:10px;margin:0 auto}
+.sidebar.collapsed .tog-btn .nav-icon-box,.sidebar.collapsed .logout-btn .nav-icon-box{width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;background:#F3F4F6;font-size:18px;flex-shrink:0;transition:background .12s}
+.sidebar.collapsed .tog-btn:hover .nav-icon-box,.sidebar.collapsed .logout-btn:hover .nav-icon-box{background:#DBEAFE}
+.sidebar.collapsed .nav-item::after,.sidebar.collapsed .tog-btn::after{content:attr(data-tip);position:absolute;left:48px;top:50%;transform:translateY(-50%);background:#1F2937;color:#fff;font-size:12px;padding:5px 12px;border-radius:6px;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .15s;z-index:300;box-shadow:0 2px 8px rgba(0,0,0,.25)}
+.sidebar.collapsed .nav-item:hover::after,.sidebar.collapsed .tog-btn:hover::after{opacity:1}
+.sidebar.collapsed .logout-btn::after{content:'ออกจากระบบ';position:absolute;left:48px;top:50%;transform:translateY(-50%);background:#1F2937;color:#fff;font-size:12px;padding:5px 12px;border-radius:6px;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .15s;z-index:300;box-shadow:0 2px 8px rgba(0,0,0,.25)}
+.sidebar.collapsed .logout-btn:hover::after{opacity:1}
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+.topbar{height:52px;border-bottom:1px solid #E5E7EB;background:#fff;display:flex;align-items:center;padding:0 1.5rem;gap:12px;flex-shrink:0;z-index:10}
+.tb-title{font-size:15px;font-weight:600}
+.tb-sep{width:1px;height:16px;background:#E5E7EB}
+.tb-sub{font-size:12px;color:#9CA3AF}
+.tb-user{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:12px;color:#6B7280}
+.db-status{display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:2px 7px;border-radius:99px;border:1px solid #E5E7EB;color:#9CA3AF}
+.db-status.ok{color:#10B981;border-color:#A7F3D0;background:#F0FDF4}
+.db-status.err{color:#EF4444;border-color:#FECACA}
+.db-status-dot{width:6px;height:6px;border-radius:50%;background:currentColor}
+.content{flex:1;overflow-y:auto;overflow-x:hidden;padding:1.25rem 1.5rem;-webkit-overflow-scrolling:touch}
+.page{display:none}.page.active{display:block}
+
+/* FILTER BAR */
+.filter-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:1rem;padding:10px 14px;background:#fff;border:1px solid #E5E7EB;border-radius:10px}
+.filter-lbl{font-size:12px;font-weight:600;color:#6B7280;white-space:nowrap}
+.filter-select{padding:6px 10px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;background:#F9FAFB;color:#111827;cursor:pointer;outline:none;min-width:155px}
+.filter-select:focus{border-color:#185FA5}
+.filter-sep{width:1px;height:22px;background:#E5E7EB;flex-shrink:0}
+
+/* TABLES */
+.sum-wrap{overflow-x:auto;border-radius:10px;border:1px solid #E5E7EB;background:#fff;margin-bottom:1rem}
+.sum-tbl{border-collapse:collapse;font-size:12px;min-width:100%}
+.sum-tbl thead th{background:#F9FAFB;padding:8px 10px;border-bottom:1px solid #E5E7EB;border-right:1px solid #E5E7EB;font-weight:600;font-size:11px;white-space:nowrap;text-align:center;color:#6B7280}
+.sum-tbl thead th.th-desc{min-width:200px;text-align:left;position:sticky;left:0;z-index:3;background:#F9FAFB}
+.sum-tbl tbody td{padding:5px 10px;border-bottom:1px solid #F3F4F6;border-right:1px solid #F3F4F6;vertical-align:middle}
+.sum-tbl tbody td.td-no{font-size:11px;color:#9CA3AF}
+.sum-tbl tbody td.td-desc{font-size:12px;color:#4B5563;position:sticky;left:0;background:#fff;z-index:1}
+.sum-tbl tbody td.td-sub{padding-left:22px;font-size:11px;color:#9CA3AF;position:sticky;left:0;background:#fff;z-index:1}
+.sum-tbl tbody td.td-sub2{padding-left:34px;font-size:11px;color:#9CA3AF;position:sticky;left:0;background:#fff;z-index:1}
+.sum-tbl td.td-val{text-align:center;font-size:12px;color:#111827}
+.sum-tbl tr.sec-row td{background:#F9FAFB;font-weight:600;font-size:11px;padding:6px 10px;color:#6B7280;text-transform:uppercase;letter-spacing:.03em}
+.sum-tbl tr.sec-row td.td-desc{background:#F9FAFB}
+.sum-tbl tr:hover td{background:#F9FAFB}
+.sum-tbl tr:hover td.td-desc,.sum-tbl tr:hover td.td-sub,.sum-tbl tr:hover td.td-sub2{background:#F9FAFB}
+.area-hdr td{background:#EFF6FF!important;color:#185FA5;font-weight:600;font-size:11px;padding:7px 10px;border-bottom:1px solid #BFDBFE}
+.area-hdr td.td-desc{background:#EFF6FF!important;position:sticky;left:0;z-index:1}
+.smp-hdr td{background:#FFFBEB!important;color:#B45309;font-weight:600;font-size:11px;padding:7px 10px;border-bottom:1px solid #FDE68A}
+.smp-hdr td.td-desc{background:#FFFBEB!important;position:sticky;left:0;z-index:1}
+.no-data{text-align:center;padding:3rem;color:#9CA3AF;font-size:13px}
+/* SMP Photo in Summary */
+.smp-photo-cell{text-align:center;padding:6px 8px;vertical-align:middle}
+.smp-thumb{width:80px;height:60px;object-fit:cover;border-radius:6px;cursor:pointer;border:1px solid #E5E7EB;transition:transform .15s;display:block;margin:0 auto}
+.smp-thumb:hover{transform:scale(1.05);border-color:#185FA5}
+.no-photo{font-size:11px;color:#D1D5DB}
+/* Lightbox */
+.lightbox{display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:600;align-items:center;justify-content:center;flex-direction:column;gap:12px}
+.lightbox.open{display:flex}
+.lightbox img{max-width:90vw;max-height:80vh;border-radius:10px;object-fit:contain}
+.lightbox-close{position:absolute;top:16px;right:20px;color:#fff;font-size:28px;cursor:pointer;background:transparent;border:none;line-height:1}
+.lightbox-actions{display:flex;gap:10px}
+.lb-btn{padding:8px 18px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:none;display:inline-flex;align-items:center;gap:6px}
+.lb-btn-dl{background:#185FA5;color:#fff}
+.lb-btn-dl:hover{background:#1450A3}
+.lb-btn-close{background:#374151;color:#fff}
+.lb-caption{color:#E5E7EB;font-size:13px;text-align:center}
+
+/* RECORD */
+.area-tabs{display:flex;gap:6px;margin-bottom:1rem;background:#fff;border:1px solid #E5E7EB;border-radius:10px;padding:5px}
+.area-tab{padding:6px 16px;border-radius:7px;font-size:13px;font-weight:500;cursor:pointer;color:#6B7280;transition:all .15s;display:inline-flex;align-items:center;gap:6px;border:none;background:transparent;font-family:Arial,sans-serif}
+.area-tab:hover{color:#111827;background:#F3F4F6}
+.area-tab.active{background:#185FA5;color:#fff}
+.sc{background:#fff;border:1px solid #E5E7EB;border-radius:10px;padding:1.25rem}
+.badge{display:inline-flex;align-items:center;font-size:10px;padding:2px 7px;border-radius:99px;background:#EFF6FF;color:#185FA5;font-weight:600;margin-left:7px}
+.meter-list{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:1rem;align-items:center}
+.mc{padding:5px 12px;border:1px solid #E5E7EB;border-radius:99px;font-size:12px;cursor:pointer;background:#F9FAFB;color:#6B7280;transition:all .12s;white-space:nowrap;font-family:Arial,sans-serif}
+.mc:hover{border-color:#185FA5;color:#185FA5}
+.mc.active{border-color:#185FA5;color:#185FA5;background:#EFF6FF;font-weight:500}
+.mc.add-mc{border-style:dashed;color:#9CA3AF;display:inline-flex;align-items:center;gap:3px}
+.mc.add-mc:hover{color:#374151;border-color:#9CA3AF}
+.form-meta{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;margin-bottom:1rem;padding-bottom:1rem;border-bottom:1px solid #F3F4F6}
+.form-meta label{font-size:11px;color:#6B7280;margin-bottom:4px;display:block;font-weight:600}
+.form-meta input{font-size:13px;padding:7px 10px;border:1px solid #D1D5DB;border-radius:8px;background:#F9FAFB;color:#111827;width:100%;outline:none}
+.form-meta input:focus{border-color:#185FA5}
+.mo-row{display:flex;align-items:center;gap:10px;margin-bottom:1rem;flex-wrap:wrap;padding:9px 12px;background:#F9FAFB;border-radius:8px;border:1px solid #E5E7EB}
+.mo-row-lbl{font-size:12px;font-weight:600;color:#6B7280;white-space:nowrap;display:flex;align-items:center;gap:5px}
+.mo-select{padding:6px 10px;border:1px solid #D1D5DB;border-radius:8px;font-size:13px;background:#fff;color:#111827;cursor:pointer;outline:none;min-width:160px}
+.mo-select:focus{border-color:#185FA5}
+.btn-add-mo{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border:1.5px solid #185FA5;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;background:#EFF6FF;color:#185FA5;transition:all .12s;font-family:Arial,sans-serif}
+.btn-add-mo:hover{background:#185FA5;color:#fff;border-color:#185FA5}
+.rtbl-wrap{overflow-x:auto;border-radius:10px;border:1px solid #E5E7EB}
+.rtbl{border-collapse:collapse;font-size:13px;width:100%}
+.rtbl thead th{background:#F9FAFB;padding:8px 10px;text-align:left;border-bottom:1px solid #E5E7EB;font-weight:600;font-size:11px;color:#6B7280;text-transform:uppercase}
+.rtbl thead th.r-center{text-align:center;min-width:160px}
+.rtbl tbody td{padding:5px 8px;border-bottom:1px solid #F3F4F6;vertical-align:middle;background:#fff}
+.rtbl tbody td.col-no{font-size:11px;color:#9CA3AF;width:44px;background:#F9FAFB}
+.rtbl tbody td.col-desc{font-size:12px;color:#4B5563;min-width:200px;background:#F9FAFB}
+.rtbl tbody td.sub-lbl{padding-left:20px;font-size:11px;color:#9CA3AF;background:#F9FAFB}
+.rtbl tbody td.sub2-lbl{padding-left:32px;font-size:11px;color:#9CA3AF;background:#F9FAFB}
+.rtbl tbody input[type=text]{width:100%;border:1.5px solid #D1D5DB;background:#fff;text-align:center;font-size:13px;color:#111827;padding:5px 8px;min-width:110px;border-radius:6px;outline:none;transition:all .12s}
+.rtbl tbody input[type=text]:focus{border-color:#185FA5;background:#F0F9FF;box-shadow:0 0 0 3px rgba(24,95,165,.1)}
+.rtbl tbody input[type=text]:hover:not(:focus){border-color:#9CA3AF;background:#F9FAFB}
+.rtbl tr.sec-row td{background:#F9FAFB;font-weight:600;font-size:10px;padding:5px 10px;color:#9CA3AF;text-transform:uppercase;letter-spacing:.05em}
+.rtbl tr:hover td{background:#F0F7FF}
+.rtbl tr:hover td.col-no,.rtbl tr:hover td.col-desc,.rtbl tr:hover td.sub-lbl,.rtbl tr:hover td.sub2-lbl{background:#EBF3FF}
+.mnr{display:flex;align-items:center;gap:8px;margin-bottom:1rem;padding-bottom:.75rem;border-bottom:1px solid #F3F4F6}
+.mnr strong{font-size:14px;font-weight:600}
+.area-pill{font-size:10px;padding:2px 7px;border-radius:99px;background:#F3F4F6;color:#6B7280;border:1px solid #E5E7EB;font-weight:500}
+.btn{padding:7px 14px;border-radius:8px;font-size:13px;cursor:pointer;border:1px solid #D1D5DB;background:#F9FAFB;color:#374151;transition:all .12s;display:inline-flex;align-items:center;gap:5px;font-family:Arial,sans-serif;font-weight:500}
+.btn:hover{background:#F3F4F6;color:#111827}
+.btn-primary{background:#185FA5;color:#fff;border-color:#185FA5}
+.btn-primary:hover{background:#1450A3}
+.btn-success{background:#F0FDF4;color:#10B981;border-color:#A7F3D0}
+.btn-success:hover{background:#DCFCE7}
+.btn-danger{color:#EF4444;border-color:#FECACA;background:transparent}
+.btn-danger:hover{background:#FEF2F2}
+.btn-sm{padding:4px 10px;font-size:12px}
+.save-bar{display:flex;align-items:center;gap:8px;justify-content:flex-end;margin-top:1rem;padding-top:1rem;border-top:1px solid #F3F4F6}
+.no-mo{color:#9CA3AF;font-size:13px;padding:2.5rem;text-align:center;display:flex;flex-direction:column;align-items:center;gap:10px}
+.no-mo i{font-size:36px}
+
+/* SMP */
+.smp-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-top:.5rem}
+.smp-card{border:1px solid #E5E7EB;border-radius:10px;padding:1.25rem;background:#fff}
+.smp-card-header{display:flex;align-items:center;gap:8px;margin-bottom:1rem;padding-bottom:.75rem;border-bottom:1px solid #F3F4F6}
+.smp-icon{width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.smp-icon.water{background:#EFF6FF;color:#3B82F6}
+.smp-icon.elec{background:#FFFBEB;color:#F59E0B}
+.smp-card-title{font-size:14px;font-weight:600}
+.smp-card-sub{font-size:11px;color:#9CA3AF;margin-top:1px}
+.smp-field{margin-bottom:.85rem}
+.smp-field label{font-size:11px;font-weight:600;color:#6B7280;margin-bottom:5px;display:block;text-transform:uppercase;letter-spacing:.03em}
+.smp-field input[type=text]{width:100%;padding:8px 11px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;background:#F9FAFB;color:#111827;outline:none}
+.smp-field input[type=text]:focus{border-color:#185FA5}
+.photo-area{border:1px dashed #D1D5DB;border-radius:8px;padding:.75rem;display:flex;flex-direction:column;align-items:center;gap:7px;cursor:pointer;background:#F9FAFB;min-height:100px;justify-content:center;position:relative;overflow:hidden;transition:all .12s}
+.photo-area:hover{border-color:#185FA5;background:#EFF6FF}
+.photo-area input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.photo-area .ph-icon{font-size:24px;color:#9CA3AF}
+.photo-area .ph-lbl{font-size:12px;color:#9CA3AF}
+.photo-preview{width:100%;border-radius:7px;object-fit:cover;max-height:160px;display:block}
+.photo-del{position:absolute;top:6px;right:6px;background:rgba(0,0,0,.55);color:#fff;border:none;border-radius:99px;width:22px;height:22px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:12px;z-index:2}
+
+/* TOAST */
+.toast{position:fixed;bottom:22px;right:22px;background:#111827;color:#fff;padding:10px 16px;border-radius:10px;font-size:13px;opacity:0;transition:all .3s;pointer-events:none;z-index:400;box-shadow:0 4px 20px rgba(0,0,0,.2);display:flex;align-items:center;gap:7px}
+.toast.show{opacity:1;transform:translateY(-4px)}
+.toast-dot{width:6px;height:6px;border-radius:50%;background:#10B981;flex-shrink:0}
+.toast.error .toast-dot{background:#EF4444}
+
+/* MODALS */
+.modal-bd{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.4);z-index:200;align-items:center;justify-content:center}
+.modal-bd.open{display:flex}
+.modal{background:#fff;border-radius:12px;padding:1.5rem;width:360px;border:1px solid #E5E7EB;box-shadow:0 8px 40px rgba(0,0,0,.12)}
+.modal h3{font-size:15px;font-weight:600;margin-bottom:.4rem}
+.modal p{font-size:13px;color:#6B7280;margin-bottom:1.25rem;line-height:1.6}
+.modal input,.modal select{width:100%;padding:8px 11px;border:1px solid #D1D5DB;border-radius:8px;font-size:14px;background:#F9FAFB;color:#111827;margin-bottom:9px;font-family:Arial,sans-serif;outline:none}
+.modal input:focus,.modal select:focus{border-color:#185FA5}
+.modal-footer{display:flex;gap:8px;justify-content:flex-end;margin-top:4px}
+.modal-icon{width:44px;height:44px;border-radius:12px;background:#FEF2F2;display:flex;align-items:center;justify-content:center;margin:0 auto .85rem;color:#EF4444;font-size:20px}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login-screen">
+  <div class="login-box">
+    <div style="text-align:center;margin-bottom:1.25rem">
+      <div style="margin-bottom:.75rem">
+        <img src="data:image/png;base64,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" style="width:90px;height:90px;border-radius:12px;object-fit:cover;display:block;margin:0 auto;" alt="NPS Logo"/>
+      </div>
+      <div class="login-title">Meter System</div>
+      <div class="login-sub">ระบบจดบันทึกมิเตอร์ไฟฟ้า</div>
+    </div>
+    <div class="login-field">
+      <label>ชื่อผู้ใช้</label>
+      <input type="text" id="login-user" placeholder="กรอกชื่อผู้ใช้" autocomplete="username"/>
+    </div>
+    <div class="login-field">
+      <label>รหัสผ่าน</label>
+      <input type="password" id="login-pass" placeholder="กรอกรหัสผ่าน" autocomplete="current-password"/>
+    </div>
+    <button class="login-btn" id="login-btn" onclick="doLogin()">เข้าสู่ระบบ</button>
+    <div class="login-error" id="login-error"></div>
+  </div>
+</div>
+
+<!-- LOADING -->
+<div class="loading-overlay hidden" id="loading-overlay">
+  <div class="spinner"></div>
+</div>
+
+<!-- APP -->
+<div class="layout">
+<div class="sidebar" id="sidebar">
+  <div class="sb-head">
+    <div class="sb-logo" style="background:transparent;padding:0;overflow:hidden"><img src="data:image/png;base64,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" style="width:26px;height:26px;object-fit:cover;border-radius:6px;" alt="NPS"/></div>
+    <span class="sb-ttl">Meter System</span>
+  </div>
+  <nav class="sb-nav">
+    <span class="nav-section-lbl">ภาพรวม</span>
+    <button class="nav-item active" data-tip="หน้าสรุป" onclick="navTo('summary',this)">
+      <div class="nav-icon-box"><i class="ti ti-layout-dashboard" style="font-size:18px"></i></div>
+      <span class="nav-lbl" style="margin-left:10px">หน้าสรุป</span>
+    </button>
+    <span class="nav-section-lbl" style="margin-top:4px">บันทึก</span>
+    <button class="nav-item" data-tip="NPS / Inter" onclick="navTo('record',this)">
+      <div class="nav-icon-box"><i class="ti ti-clipboard-text" style="font-size:18px"></i></div>
+      <span class="nav-lbl" style="margin-left:10px">NPS / Inter</span>
+    </button>
+    <button class="nav-item" data-tip="SMP Substation" onclick="navTo('smp',this)">
+      <div class="nav-icon-box"><i class="ti ti-building" style="font-size:18px"></i></div>
+      <span class="nav-lbl" style="margin-left:10px">SMP Substation</span>
+    </button>
+  </nav>
+  <div class="sb-foot">
+    <button class="tog-btn" data-tip="เปิดเมนู" onclick="toggleSidebar()">
+      <div class="nav-icon-box"><i class="ti ti-chevrons-left" style="font-size:18px;transition:transform .22s" id="tog-icon"></i></div>
+      <span class="nav-lbl2" style="margin-left:8px">ซ่อนเมนู</span>
+    </button>
+    <button class="logout-btn" onclick="doLogout()">
+      <div class="nav-icon-box"><i class="ti ti-logout" style="font-size:18px"></i></div>
+      <span class="nav-lbl2" style="margin-left:8px">ออกจากระบบ</span>
+    </button>
+  </div>
+</div>
+
+<div class="main">
+  <div class="topbar">
+    <span class="tb-title" id="tb-title">หน้าสรุป</span>
+    <div class="tb-sep"></div>
+    <span class="tb-sub" id="tb-sub">ภาพรวมมิเตอร์ทั้งหมด</span>
+    <div class="tb-user">
+      <i class="ti ti-user-circle" style="font-size:15px"></i>
+      <span id="tb-username">—</span>
+      <span class="db-status ok" id="db-status"><span class="db-status-dot"></span>DB</span>
+    </div>
+  </div>
+  <div class="content">
+
+    <!-- SUMMARY -->
+    <div class="page active" id="page-summary">
+      <div class="filter-bar">
+        <span class="filter-lbl">พื้นที่</span>
+        <select class="filter-select" id="filter-area-sel">
+          <option value="nps">NPS Substation</option>
+          <option value="inter">Inter Substation</option>
+          <option value="bay">Inter Bay (Bay1-5)</option>
+          <option value="smp">SMP Substation</option>
+        </select>
+        <div class="filter-sep"></div>
+        <span class="filter-lbl">เดือน</span>
+        <select class="filter-select" id="filter-month-sel"><option value="all">— เลือกเดือน —</option></select>
+        <div style="flex:1"></div>
+        <button class="btn btn-success btn-sm" id="btn-export"><i class="ti ti-file-spreadsheet"></i> Export Excel</button>
+      </div>
+      <div id="summary-content"></div>
+    </div>
+
+    <!-- RECORD -->
+    <div class="page" id="page-record">
+      <div class="area-tabs">
+        <button class="area-tab active" onclick="switchArea('nps')"><i class="ti ti-building-factory-2"></i> NPS Substation</button>
+        <button class="area-tab" onclick="switchArea('inter')"><i class="ti ti-arrows-exchange"></i> Inter Substation</button>
+        <button class="area-tab" onclick="switchArea('bay')"><i class="ti ti-arrows-exchange"></i> Inter Bay (Bay1-5)</button>
+      </div>
+      <div id="area-nps"><div class="sc">
+        <div style="display:flex;align-items:center;margin-bottom:1rem">
+          <span style="font-size:15px;font-weight:600">NPS Substation</span><span class="badge" id="nps-count"></span>
+        </div>
+        <div class="meter-list" id="nps-meter-list"></div>
+        <div id="nps-meter-form"></div>
+      </div></div>
+      <div id="area-inter" style="display:none"><div class="sc">
+        <div style="display:flex;align-items:center;margin-bottom:1rem">
+          <span style="font-size:15px;font-weight:600">Inter Substation</span><span class="badge" id="inter-count"></span>
+        </div>
+        <div class="meter-list" id="inter-meter-list"></div>
+        <div id="inter-meter-form"></div>
+      </div></div>
+      <div id="area-bay" style="display:none"><div class="sc">
+        <div style="display:flex;align-items:center;margin-bottom:1rem">
+          <span style="font-size:15px;font-weight:600">Inter Bay (Bay1-5)</span><span class="badge" id="bay-count"></span>
+        </div>
+        <div class="meter-list" id="bay-meter-list"></div>
+        <div id="bay-meter-form"></div>
+      </div></div>
+    </div>
+
+    <!-- SMP -->
+    <div class="page" id="page-smp">
+      <div class="sc">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:1rem">
+          <div style="width:34px;height:34px;border-radius:8px;background:#EFF6FF;display:flex;align-items:center;justify-content:center;color:#185FA5">
+            <i class="ti ti-building" style="font-size:17px"></i>
+          </div>
+          <div>
+            <div style="font-size:15px;font-weight:600">SMP Substation</div>
+            <div style="font-size:11px;color:#9CA3AF;margin-top:1px">มิเตอร์น้ำและมิเตอร์ไฟฟ้า</div>
+          </div>
+        </div>
+        <div class="mo-row">
+          <span class="mo-row-lbl"><i class="ti ti-calendar" style="font-size:13px"></i> เดือนที่บันทึก</span>
+          <div id="smp-mo-selector"></div>
+          <button class="btn-add-mo" id="smp-btn-add-month"><i class="ti ti-calendar-plus" style="font-size:13px"></i> เพิ่มเดือน</button>
+        </div>
+        <div id="smp-form-body"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</div>
+
+<div class="toast" id="toast"><div class="toast-dot"></div><span id="toast-msg"></span></div>
+
+<!-- LIGHTBOX -->
+<div class="lightbox" id="lightbox" onclick="closeLightbox(event)">
+  <button class="lightbox-close" onclick="closeLightbox()">&times;</button>
+  <img id="lb-img" src="" alt=""/>
+  <div class="lb-caption" id="lb-caption"></div>
+  <div class="lightbox-actions">
+    <button class="lb-btn lb-btn-dl" id="lb-dl-btn"><i class="ti ti-download"></i> ดาวน์โหลดรูป</button>
+    <button class="lb-btn lb-btn-close" onclick="closeLightbox()"><i class="ti ti-x"></i> ปิด</button>
+  </div>
+</div>
+
+<div class="modal-bd" id="modal-meter">
+  <div class="modal"><h3>เพิ่มมิเตอร์ใหม่</h3><p>ระบุชื่อมิเตอร์ที่ต้องการเพิ่ม</p>
+    <input type="text" id="modal-meter-inp" placeholder="เช่น Feeder-A1"/>
+    <div class="modal-footer"><button class="btn" onclick="closeModal('modal-meter')">ยกเลิก</button><button class="btn btn-primary" onclick="confirmAddMeter()">เพิ่มมิเตอร์</button></div>
+  </div>
+</div>
+<div class="modal-bd" id="modal-month">
+  <div class="modal"><h3>เพิ่มเดือนใหม่</h3><p>เลือกปีและเดือนที่ต้องการบันทึกข้อมูล</p>
+    <select id="mm-year"><option>2567</option><option>2568</option><option selected>2569</option><option>2570</option><option>2571</option></select>
+    <select id="mm-mon" onchange="toggleCustomMonth(this.value)">
+      <option>มกราคม</option><option>กุมภาพันธ์</option><option>มีนาคม</option><option>เมษายน</option><option>พฤษภาคม</option><option>มิถุนายน</option><option>กรกฎาคม</option><option>สิงหาคม</option><option>กันยายน</option><option>ตุลาคม</option><option>พฤศจิกายน</option><option>ธันวาคม</option>
+      <option value="__custom__">✏️ กำหนดเอง (Custom)...</option>
+    </select>
+    <input type="text" id="mm-custom" placeholder="พิมพ์ชื่อเดือน เช่น Q1/2569" style="display:none;margin-top:0"/>
+    <div class="modal-footer"><button class="btn" onclick="closeModal('modal-month')">ยกเลิก</button><button class="btn btn-primary" id="modal-month-ok">เพิ่มเดือน</button></div>
+  </div>
+</div>
+<div class="modal-bd" id="modal-confirm">
+  <div class="modal" style="text-align:center">
+    <div class="modal-icon"><i class="ti ti-trash"></i></div>
+    <h3 id="confirm-title"></h3><p id="confirm-msg"></p>
+    <div class="modal-footer" style="justify-content:center">
+      <button class="btn" id="confirm-cancel-btn">ยกเลิก</button>
+      <button class="btn btn-danger" id="confirm-ok-btn">ยืนยันลบ</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════
+//  ⚙️  CONFIG — แก้ไข 2 บรรทัดนี้หลังสมัคร Supabase
+// ═══════════════════════════════════════════════
+const SUPABASE_URL = 'https://scronodjwhwwthcfltwz.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_cgY_LO7czbEHjoK11eufaA_On355Snk';
+
+// ═══════════════════════════════════════════════
+//  🔑  USER ACCOUNTS
+// ═══════════════════════════════════════════════
+const USERS = {
+  'NPSUser': 'NPSUser',
+  // เพิ่มพนักงานได้เรื่อยๆ 'ชื่อ': 'รหัส'
+};
+
+// ────────────────────────────────────────────────
+const { createClient } = supabase;
+let db = null, dbOk = false;
+
+function initSupabase() {
+  try {
+    if (SUPABASE_URL.includes('PASTE')) { dbOk=false; setDbStatus(false); return; }
+    db = createClient(SUPABASE_URL, SUPABASE_KEY);
+    dbOk = true; setDbStatus(true);
+  } catch(e) { dbOk=false; setDbStatus(false); }
+}
+function setDbStatus(ok) {
+  const el = document.getElementById('db-status');
+  if(!el) return;
+  el.className = 'db-status ' + (ok?'ok':'err');
+  el.innerHTML = `<span class="db-status-dot"></span>${ok?'DB':'Offline'}`;
+}
+
+// ── LOGIN ────────────────────────────────────────
+let currentUser = null;
+
+function doLogin() {
+  const user = document.getElementById('login-user').value.trim();
+  const pass = document.getElementById('login-pass').value;
+  const errEl = document.getElementById('login-error');
+  const btn = document.getElementById('login-btn');
+  if (!user||!pass) { errEl.textContent='กรุณากรอกชื่อผู้ใช้และรหัสผ่าน'; return; }
+  if (USERS[user] && USERS[user]===pass) {
+    currentUser = user;
+    document.getElementById('tb-username').textContent = user;
+    document.getElementById('login-screen').classList.add('hidden');
+    errEl.textContent = '';
+    initSupabase();
+    loadAllData();
+  } else {
+    errEl.textContent = 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง';
+    btn.disabled = true;
+    setTimeout(()=>{ btn.disabled=false; }, 2000);
+  }
+}
+function doLogout() {
+  currentUser = null;
+  document.getElementById('login-screen').classList.remove('hidden');
+  document.getElementById('login-user').value = '';
+  document.getElementById('login-pass').value = '';
+  document.getElementById('login-error').textContent = '';
+}
+document.getElementById('login-pass').addEventListener('keydown', e=>{ if(e.key==='Enter') doLogin(); });
+document.getElementById('login-user').addEventListener('keydown', e=>{ if(e.key==='Enter') document.getElementById('login-pass').focus(); });
+
+// ── DATA ─────────────────────────────────────────
+const NPS_DEF=['AC3.3','AC3.4','AC3.6','AC3.8','J101','J102','J103','J104','Bay7','RCP PH1','GCRCP PH1'];
+const INTER_DEF=['AC4.01','AC4.03(Pulp1)','AC4.04','AC4.05','AC5.01','AC5.02','AC5.04(PM1)','AC5.05(PM2)','AC5.06(PM3)','AC5.10(Pulp2)','AC5.14'];
+const BAY_DEF=['Bay1','Bay2','Bay3','Bay4','Bay5'];
+const NPS_ROWS=[{id:'reset',label:'ครั้งที่ Reset',type:'row',no:'1'},{id:'s21',label:'ดีมานด์สะสมช่วง Peak (kW)',type:'row',no:'2.1'},{id:'s22',label:'ดีมานด์สะสมช่วง Off-Peak (kW)',type:'row',no:'2.2'},{id:'s61',label:'ดีมานด์ช่วง Peak (kW)',type:'row',no:'6.1'},{id:'s61L',label:'ดีมานด์สูงสุดช่วง Peak (kW)',type:'row',no:'6.1L'},{id:'s61Ldt',label:'วันที่และเวลาสูงสด (dd/tt:tt)',type:'sub'},{id:'s62',label:'ดีมานด์ช่วง Off-Peak (kW)',type:'row',no:'6.2'},{id:'s62L',label:'ดีมานด์สูงสุดช่วง Off-Peak (kW)',type:'row',no:'6.2L'},{id:'s62Ldt',label:'วันที่และเวลาสูงสด (dd/tt:tt)',type:'sub'},{id:'s81',label:'หน่วยพลังงานไฟฟ้า Peak (kWh)',type:'row',no:'8.1'},{id:'s81L',label:'หน่วยพลังงานไฟฟ้า Peak (kWh)',type:'row',no:'8.1L'},{id:'s82',label:'หน่วยพลังงานไฟฟ้า Off-Peak (kWh)',type:'row',no:'8.2'},{id:'s82L',label:'8.21 หน่วยพลังงานไฟฟ้า Of-Peak (kWh)',type:'row',no:'8.2L'},{id:'s20L',label:'หน่วยพลังงานไฟฟ้ารวม Export (kWh)',type:'row',no:'20L'},{id:'s21L',label:'หน่วยพลังงานไฟฟ้ารวม Import (kWh)',type:'row',no:'21L'},{id:'s7L',label:'Max VAR',type:'row',no:'7L'},{id:'metertime',label:'เวลาปัจจุบันของมิเตอร์',type:'row'},{id:'realtime',label:'เวลาจริง',type:'row'},{id:'recorder',label:'ผู้จดบันทึก',type:'row'}];
+const INTER_ROWS=[
+  {id:'reset',    label:'ครั้งที่ Reset',                        type:'row', no:'1'},
+  {id:'r1',       label:'ดีมานด์สะสม On peak (kW)',              type:'row', no:'R1'},
+  {id:'r2',       label:'ดีมานด์สะสม Off peak (kW)',             type:'row', no:'R2'},
+  {id:'i61',      label:'ดีมานด์สะสม On peak (kW)',              type:'row', no:'6.1'},
+  {id:'i62',      label:'ดีมานด์สะสม Off peak (kW)',             type:'row', no:'6.2'},
+  {id:'i81',      label:'หน่วยพลังงานไฟฟ้า On peak (kWh)',       type:'row', no:'8.1'},
+  {id:'i82',      label:'หน่วยพลังงานไฟฟ้า Off peak (kWh)',      type:'row', no:'8.2'},
+  {id:'i61L',     label:'ดีมานด์สูงสุด On peak (kW)',            type:'row', no:'6.1L'},
+  {id:'i61Ldt',   label:'วันที่/เวลา',                           type:'sub'},
+  {id:'i62L',     label:'ดีมานด์สูงสุด Off peak (kW)',           type:'row', no:'6.2L'},
+  {id:'i62Ldt',   label:'วันที่/เวลา',                           type:'sub'},
+  {id:'i7L',      label:'ดีมานด์สูงสุด (kVar)',                  type:'row', no:'7L'},
+  {id:'i7Ldt',    label:'วันที่/เวลา',                           type:'sub'},
+  {id:'i81L',     label:'หน่วยพลังงานไฟฟ้า On peak (kWh)',       type:'row', no:'8.1L'},
+  {id:'i52L',     label:'หน่วยพลังงานไฟฟ้า Off peak (kWh)',      type:'row', no:'8.2L'},
+  {id:'i20',      label:'หน่วยพลังงานไฟฟ้ารวม Export (kWh)',     type:'row', no:'20'},
+  {id:'i21',      label:'หน่วยพลังงานไฟฟ้ารวม Import (kWh)',     type:'row', no:'21'},
+  {id:'metertime',label:'เวลาปัจจุบันของมิเตอร์',               type:'row', no:''},
+  {id:'i21L',     label:'เวลาจริง',                              type:'row', no:'21L'},
+];
+const BAY_ROWS=[
+  {id:'b_reset',  label:'ครั้งที่ Reset',                        type:'row', no:''},
+  {id:'b_on_avg', label:'ดีมานด์สะสม On peak (MW)',              type:'row', no:''},
+  {id:'b_off_avg',label:'ดีมานด์สะสม Off peak (MW)',             type:'row', no:''},
+  {id:'b_sec1',   label:'ดีมานด์สะสม On peak (MW)',              type:'section'},
+  {id:'b_161e',   label:'Export',                                type:'sub',  no:'1.6.1'},
+  {id:'b_261i',   label:'Import',                                type:'sub',  no:'2.6.1'},
+  {id:'b_sec2',   label:'ดีมานด์สะสม Off peak (MW)',             type:'section'},
+  {id:'b_162e',   label:'Export',                                type:'sub',  no:'1.6.2'},
+  {id:'b_262i',   label:'Import',                                type:'sub',  no:'2.6.2'},
+  {id:'b_sec3',   label:'หน่วยพลังงานไฟฟ้า On peak (MWh)',       type:'section'},
+  {id:'b_181e',   label:'Export',                                type:'sub',  no:'1.8.1'},
+  {id:'b_281i',   label:'Import',                                type:'sub',  no:'2.8.1'},
+  {id:'b_sec4',   label:'หน่วยพลังงานไฟฟ้า Off peak (MWh)',      type:'section'},
+  {id:'b_182e',   label:'Export',                                type:'sub',  no:'1.8.2'},
+  {id:'b_282i',   label:'Import',                                type:'sub',  no:'2.8.2'},
+  {id:'b_sec5',   label:'ดีมานด์สูงสุด On peak (MW)',            type:'section'},
+  {id:'b_1611e',  label:'Export',                                type:'sub',  no:'1.6.1..L'},
+  {id:'b_1611edt',label:'วันที่และเวลา',                         type:'sub2'},
+  {id:'b_2611i',  label:'Import',                                type:'sub',  no:'2.6.1..L'},
+  {id:'b_2611idt',label:'วันที่และเวลา',                         type:'sub2'},
+  {id:'b_sec6',   label:'ดีมานด์สูงสุด Off peak (MW)',           type:'section'},
+  {id:'b_1622e',  label:'Export',                                type:'sub',  no:'1.6.2..L'},
+  {id:'b_1622edt',label:'วันที่และเวลา',                         type:'sub2'},
+  {id:'b_2622i',  label:'Import',                                type:'sub',  no:'2.6.2..L'},
+  {id:'b_2622idt',label:'วันที่และเวลา',                         type:'sub2'},
+  {id:'b_sec7',   label:'ดีมานด์สูงสุด On peak (MVar)',          type:'section'},
+  {id:'b_3611e',  label:'Export',                                type:'sub',  no:'3.6.1..L'},
+  {id:'b_3611edt',label:'วันที่และเวลา',                         type:'sub2'},
+  {id:'b_4611i',  label:'Import',                                type:'sub',  no:'4.6.1..L'},
+  {id:'b_4611idt',label:'วันที่และเวลา',                         type:'sub2'},
+  {id:'b_sec8',   label:'ดีมานด์สูงสุด Off peak (MVar)',         type:'section'},
+  {id:'b_3622e',  label:'Export',                                type:'sub',  no:'3.6.2..L'},
+  {id:'b_3622edt',label:'วันที่และเวลา',                         type:'sub2'},
+  {id:'b_4622i',  label:'Import',                                type:'sub',  no:'4.6.2..L'},
+  {id:'b_4622idt',label:'วันที่และเวลา',                         type:'sub2'},
+  {id:'b_sec9',   label:'หน่วยพลังงานไฟฟ้า On peak (MWh)',       type:'section'},
+  {id:'b_1811e',  label:'Export',                                type:'sub',  no:'1.8.1..L'},
+  {id:'b_2811i',  label:'Import',                                type:'sub',  no:'2.8.1..L'},
+  {id:'b_sec10',  label:'หน่วยพลังงานไฟฟ้า Off peak (MWh)',      type:'section'},
+  {id:'b_1822e',  label:'Export',                                type:'sub',  no:'1.8.2..L'},
+  {id:'b_2822i',  label:'Import',                                type:'sub',  no:'2.8.2..L'},
+  {id:'b_sec11',  label:'หน่วยพลังงานไฟฟ้า Total (MWh)',         type:'section'},
+  {id:'b_180e',   label:'Export',                                type:'sub',  no:'1.8.0'},
+  {id:'b_280i',   label:'Import',                                type:'sub',  no:'2.8.0'},
+  {id:'b_realtime',label:'เวลาจริง',                            type:'row',  no:''},
+];
+const SMP_ROWS=[{id:'water',label:'มิเตอร์น้ำ (ลบ.ม.)',type:'row',no:'1'},{id:'electric',label:'มิเตอร์ไฟฟ้า (kWh)',type:'row',no:'2'}];
+
+function mkMeter(n){return{name:n,meta:{customer:'',serial:'',model:'',feeder:''},months:[],activeMonth:null,data:{}};}
+const smpState={months:[],activeMonth:null,records:{}};
+const state={
+  nps:{meters:NPS_DEF.map(mkMeter),active:0},
+  inter:{meters:INTER_DEF.map(mkMeter),active:0},
+  bay:{meters:BAY_DEF.map(mkMeter),active:0}
+};
+let currentArea='nps',modalCtx={};
+
+// ── SUPABASE ─────────────────────────────────────
+function showLoading(v){document.getElementById('loading-overlay').classList.toggle('hidden',!v);}
+
+async function loadAllData(){
+  if(!dbOk)return;
+  showLoading(true);
+  try{
+    const{data:rows,error}=await db.from('meter_records').select('*');
+    if(error)throw error;
+    ['nps','inter','bay'].forEach(area=>state[area].meters.forEach(m=>{m.months=[];m.activeMonth=null;m.data={};}));
+    rows.forEach(r=>{
+      const meter=state[r.area]?.meters.find(m=>m.name===r.meter_name);
+      if(!meter)return;
+      if(!meter.months.includes(r.month)){meter.months.push(r.month);meter.months.sort();}
+      if(!meter.data[r.row_id])meter.data[r.row_id]={};
+      meter.data[r.row_id][r.month]=r.value;
+    });
+    ['nps','inter','bay'].forEach(area=>state[area].meters.forEach(m=>{if(m.months.length&&!m.activeMonth)m.activeMonth=m.months[m.months.length-1];}));
+    const{data:smpRows,error:smpErr}=await db.from('smp_records').select('*');
+    if(smpErr)throw smpErr;
+    smpState.months=[];smpState.records={};
+    smpRows.forEach(r=>{
+      if(!smpState.months.includes(r.month))smpState.months.push(r.month);
+      smpState.records[r.month]={water:{value:r.water_value||'',photo:r.water_photo_url||null},electric:{value:r.electric_value||'',photo:r.electric_photo_url||null}};
+    });
+    smpState.months.sort();
+    if(smpState.months.length)smpState.activeMonth=smpState.months[smpState.months.length-1];
+    setDbStatus(true);
+  }catch(e){console.error(e);setDbStatus(false);}
+  showLoading(false);
+  renderSummary();renderMeterList(currentArea);renderForm(currentArea);
+}
+
+async function saveMeterRecord(area,meterName,month,rowId,value){
+  if(!dbOk)return;
+  try{
+    await db.from('meter_records').upsert({area,meter_name:meterName,month,row_id:rowId,value,updated_by:currentUser,updated_at:new Date().toISOString()},{onConflict:'area,meter_name,month,row_id'});
+  }catch(e){console.error(e);setDbStatus(false);}
+}
+async function saveAllMeterData(area,mi){
+  if(!dbOk)return;
+  const meter=state[area].meters[mi];const activeMo=meter.activeMonth;if(!activeMo)return;
+  const rows=(area==='nps'?NPS_ROWS:area==='bay'?BAY_ROWS:INTER_ROWS);
+  const upserts=rows.filter(r=>r.type!=='section').map(r=>({area,meter_name:meter.name,month:activeMo,row_id:r.id,value:(meter.data[r.id]||{})[activeMo]||'',updated_by:currentUser,updated_at:new Date().toISOString()}));
+  try{await db.from('meter_records').upsert(upserts,{onConflict:'area,meter_name,month,row_id'});setDbStatus(true);}catch(e){console.error(e);setDbStatus(false);}
+}
+async function deleteMeterMonth(area,meterName,month){
+  if(!dbOk)return;
+  try{await db.from('meter_records').delete().eq('area',area).eq('meter_name',meterName).eq('month',month);}catch(e){console.error(e);}
+}
+async function saveSmpRecord(month){
+  if(!dbOk)return;
+  const rec=smpState.records[month];if(!rec)return;
+  try{
+    await db.from('smp_records').upsert({month,water_value:rec.water.value||'',water_photo_url:(typeof rec.water.photo==='string'&&rec.water.photo.startsWith('data:'))?null:rec.water.photo,electric_value:rec.electric.value||'',electric_photo_url:(typeof rec.electric.photo==='string'&&rec.electric.photo.startsWith('data:'))?null:rec.electric.photo,updated_by:currentUser,updated_at:new Date().toISOString()},{onConflict:'month'});
+    setDbStatus(true);
+  }catch(e){console.error(e);setDbStatus(false);}
+}
+async function deleteSmpMonth(month){
+  if(!dbOk)return;
+  try{await db.from('smp_records').delete().eq('month',month);}catch(e){console.error(e);}
+}
+
+// ── UI HELPERS ───────────────────────────────────
+function customConfirm(title,msg,onOk){document.getElementById('confirm-title').textContent=title;document.getElementById('confirm-msg').textContent=msg;const bd=document.getElementById('modal-confirm');bd.classList.add('open');const ok=document.getElementById('confirm-ok-btn').cloneNode(true),ca=document.getElementById('confirm-cancel-btn').cloneNode(true);document.getElementById('confirm-ok-btn').replaceWith(ok);document.getElementById('confirm-cancel-btn').replaceWith(ca);ok.addEventListener('click',()=>{bd.classList.remove('open');onOk();});ca.addEventListener('click',()=>bd.classList.remove('open'));}
+function showToast(msg,isErr=false){document.getElementById('toast-msg').textContent=msg;const t=document.getElementById('toast');t.className='toast'+(isErr?' error':'');t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2800);}
+function closeModal(id){document.getElementById(id).classList.remove('open');}
+function toggleSidebar(){
+  const sb=document.getElementById('sidebar');
+  sb.classList.toggle('collapsed');
+  const ico=document.getElementById('tog-icon');
+  if(ico){ico.style.transform=sb.classList.contains('collapsed')?'rotate(180deg)':'';}
+}
+function navTo(page,btn){document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('active'));btn.classList.add('active');document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.getElementById('page-'+page).classList.add('active');const info={summary:{t:'หน้าสรุป',s:'ภาพรวมมิเตอร์ทั้งหมด'},record:{t:'จดบันทึก',s:'NPS / Inter Substation'},smp:{t:'SMP Substation',s:'มิเตอร์น้ำและมิเตอร์ไฟฟ้า'}};document.getElementById('tb-title').textContent=info[page].t;document.getElementById('tb-sub').textContent=info[page].s;if(page==='summary')renderSummary();if(page==='record'){renderMeterList(currentArea);renderForm(currentArea);}if(page==='smp')renderSmpPage();}
+
+// ── SUMMARY ──────────────────────────────────────
+function getAllMonths(){const s=new Set();['nps','inter','bay'].forEach(a=>state[a].meters.forEach(m=>m.months.forEach(mo=>{if(mo)s.add(String(mo));})));smpState.months.forEach(mo=>{if(mo)s.add(String(mo));});return[...s].sort();}
+function renderSummary(){const months=getAllMonths();const sel=document.getElementById('filter-month-sel');const cur=sel.value;sel.innerHTML='<option value="all">— เลือกเดือน —</option>';months.forEach(mo=>{const o=document.createElement('option');o.value=mo;o.textContent=mo;if(mo===cur)o.selected=true;sel.appendChild(o);});renderSummaryContent();}
+function renderSummaryContent(){
+  const fa=document.getElementById('filter-area-sel').value;
+  const fm=String(document.getElementById('filter-month-sel').value||'all');
+  const cont=document.getElementById('summary-content');
+  if(fm==='all'){cont.innerHTML='<div style="text-align:center;padding:4rem;color:#9CA3AF;font-size:13px"><i class="ti ti-calendar" style="font-size:36px;display:block;margin:0 auto .75rem;color:#D1D5DB"></i>กรุณาเลือกเดือนเพื่อแสดงข้อมูล</div>';return;}
+  const months=[fm];
+  cont.innerHTML='';
+  const showNI=fa==='nps'||fa==='inter',showBay=fa==='bay',showSmp=fa==='smp';
+  if(showNI){const areas=fa==='nps'?['nps']:['inter'];if(areas.length){const areaCols=areas.map(a=>({area:a,label:a==='nps'?'NPS Substation':'Inter Substation',meters:state[a].meters.filter(m=>m.months.some(mo=>months.includes(mo)))})).filter(a=>a.meters.length>0);if(areaCols.length){const allCols=[];areaCols.forEach(({area,meters})=>meters.forEach(m=>months.forEach(mo=>{if(m.months.includes(mo))allCols.push({area,meterName:m.name,month:mo,meter:m});})));let thead='<tr><th class="th-no">No.</th><th class="th-desc">รายการ</th>'+allCols.map(c=>`<th style="min-width:100px;text-align:center;font-size:11px">${c.meterName}<br><span style="color:#9CA3AF;font-weight:400">${c.month}</span></th>`).join('')+'</tr>';let tbody='';areaCols.forEach(({area,label})=>{const rows=area==='nps'?NPS_ROWS:INTER_ROWS;const aCols=allCols.filter(c=>c.area===area);if(!aCols.length)return;tbody+=`<tr class="area-hdr"><td class="td-no"></td><td class="td-desc" colspan="${1+allCols.length}"><i class="ti ti-${area==='nps'?'building-factory-2':'arrows-exchange'}" style="font-size:12px;vertical-align:-2px;margin-right:6px"></i>${label}</td></tr>`;rows.forEach(row=>{if(row.type==='section'){tbody+=`<tr class="sec-row"><td class="td-no"></td><td class="td-desc" colspan="${1+allCols.length}">${row.label}</td></tr>`;return;}const tc=row.type==='sub'?'td-sub':row.type==='sub2'?'td-sub2':'td-desc';tbody+=`<tr><td class="td-no">${row.no||''}</td><td class="${tc}">${row.label}</td>`+allCols.map(c=>c.area===area?`<td class="td-val">${(()=>{const v=(c.meter.data[row.id]||{})[c.month];return(v===undefined||v===null)?'—':v;})()} </td>`:'<td style="background:#F9FAFB"></td>').join('')+'</tr>';});});const w=document.createElement('div');w.className='sum-wrap';w.innerHTML=`<table class="sum-tbl"><thead>${thead}</thead><tbody>${tbody}</tbody></table>`;cont.appendChild(w);}else{cont.innerHTML='<div style="text-align:center;padding:4rem;color:#9CA3AF;font-size:13px">ยังไม่มีข้อมูลเดือนนี้</div>';}}}
+  if(showBay){
+    const bayMeters=state.bay.meters.filter(m=>m.months.some(mo=>months.includes(mo)));
+    if(bayMeters.length){
+      const allCols=[];bayMeters.forEach(m=>months.forEach(mo=>{if(m.months.includes(mo))allCols.push({meterName:m.name,month:mo,meter:m});}));
+      let thead='<tr><th class="th-no">No.</th><th class="th-desc">รายการ</th>'+allCols.map(c=>`<th style="min-width:100px;text-align:center;font-size:11px">${c.meterName}<br><span style="color:#9CA3AF;font-weight:400">${c.month}</span></th>`).join('')+'</tr>';
+      let tbody=`<tr class="area-hdr"><td class="td-no"></td><td class="td-desc" colspan="${1+allCols.length}"><i class="ti ti-arrows-exchange" style="font-size:12px;vertical-align:-2px;margin-right:6px"></i>Inter Bay (Bay1-5)</td></tr>`;
+      BAY_ROWS.forEach(row=>{if(row.type==='section'){tbody+=`<tr class="sec-row"><td class="td-no"></td><td class="td-desc" colspan="${1+allCols.length}">${row.label}</td></tr>`;return;}const tc=row.type==='sub'?'td-sub':row.type==='sub2'?'td-sub2':'td-desc';tbody+=`<tr><td class="td-no">${row.no||''}</td><td class="${tc}">${row.label}</td>`+allCols.map(c=>`<td class="td-val">${(()=>{const v=(c.meter.data[row.id]||{})[c.month];return(v===undefined||v===null)?'—':v;})()}</td>`).join('')+'</tr>';});
+      const w=document.createElement('div');w.className='sum-wrap';w.innerHTML=`<table class="sum-tbl"><thead>${thead}</thead><tbody>${tbody}</tbody></table>`;cont.appendChild(w);
+    }else{cont.innerHTML='<div style="text-align:center;padding:4rem;color:#9CA3AF;font-size:13px">ยังไม่มีข้อมูลเดือนนี้</div>';}
+  }  if(showSmp){const smpMonths=months.filter(mo=>smpState.months.map(String).includes(String(mo)));if(smpMonths.length){
+    // Table: values
+    let thead=`<tr><th class="th-no">No.</th><th class="th-desc">รายการ</th>`+smpMonths.map(mo=>`<th style="min-width:130px;text-align:center;font-size:11px">SMP Substation<br><span style="color:#9CA3AF;font-weight:400">${mo}</span></th>`).join('')+'</tr>';
+    let tbody=`<tr class="smp-hdr"><td class="td-no"></td><td class="td-desc" colspan="${1+smpMonths.length}"><i class="ti ti-building" style="font-size:12px;vertical-align:-2px;margin-right:6px"></i>SMP Substation</td></tr>`;
+    SMP_ROWS.forEach(row=>{tbody+=`<tr><td class="td-no">${row.no}</td><td class="td-desc">${row.label}</td>`+smpMonths.map(mo=>{const rec=smpState.records[mo];const val=rec?rec[row.id]?.value||'—':'—';return`<td class="td-val">${val}</td>`;}).join('')+'</tr>';});
+    // Photo rows
+    const photoTypes=[{key:'water',label:'📷 รูปมิเตอร์น้ำ'},{key:'electric',label:'📷 รูปมิเตอร์ไฟฟ้า'}];
+    photoTypes.forEach(pt=>{
+      tbody+=`<tr><td class="td-no"></td><td class="td-desc" style="font-size:12px;color:#6B7280">${pt.label}</td>`;
+      smpMonths.forEach(mo=>{
+        const rec=smpState.records[mo];
+        const photo=rec?rec[pt.key]?.photo:null;
+        if(photo){
+          tbody+=`<td class="smp-photo-cell">
+            <img src="${photo}" class="smp-thumb" onclick="openLightbox('${photo}','${pt.label} — ${mo}')" title="คลิกเพื่อดูรูปใหญ่"/>
+            <div style="margin-top:4px">
+              <a href="${photo}" download="smp_${pt.key}_${mo.replace(/ /g,'_')}.jpg" style="font-size:11px;color:#185FA5;text-decoration:none;display:inline-flex;align-items:center;gap:3px"><i class="ti ti-download" style="font-size:11px"></i>ดาวน์โหลด</a>
+            </div>
+          </td>`;
+        } else {
+          tbody+=`<td class="smp-photo-cell"><span class="no-photo">ไม่มีรูป</span></td>`;
+        }
+      });
+      tbody+=`</tr>`;
+    });
+    const w=document.createElement('div');w.className='sum-wrap';w.innerHTML=`<table class="sum-tbl"><thead>${thead}</thead><tbody>${tbody}</tbody></table>`;cont.appendChild(w);
+  }}
+  if(!cont.innerHTML)cont.innerHTML='<div style="text-align:center;padding:4rem;color:#9CA3AF;font-size:13px">ยังไม่มีข้อมูลสำหรับเดือนที่เลือก</div>';
+}
+function exportExcel(){
+  try{
+    const fa=document.getElementById('filter-area-sel').value;
+    const fm=String(document.getElementById('filter-month-sel').value||'all');
+    if(fm==='all'){showToast('กรุณาเลือกเดือนก่อน Export',true);return;}
+    const months=[fm];
+    const wb=XLSX.utils.book_new();
+
+    // NPS / Inter / Bay sheets
+    ['nps','inter','bay'].forEach(area=>{
+      if(fa!==area)return;
+      const rows=area==='nps'?NPS_ROWS:area==='inter'?INTER_ROWS:BAY_ROWS;
+      const meters=state[area].meters.filter(m=>m.months.some(mo=>months.includes(String(mo))));
+      if(!meters.length)return;
+      const cols=[];
+      meters.forEach(m=>months.forEach(mo=>{if(m.months.map(String).includes(String(mo)))cols.push({m,mo:String(mo)});}));
+      if(!cols.length)return;
+      const wsData=[['No.','Description',...cols.map(c=>c.m.name+' ('+c.mo+')')]];
+      rows.forEach(row=>{
+        if(row.type==='section'){wsData.push(['',row.label,...cols.map(()=>'')]);return;}
+        wsData.push([row.no||'',(row.type==='sub'?'  ':row.type==='sub2'?'    ':'')+row.label,...cols.map(c=>(c.m.data[row.id]||{})[c.mo]||'')]);
+      });
+      const ws=XLSX.utils.aoa_to_sheet(wsData);
+      ws['!cols']=[{wch:8},{wch:36},...cols.map(()=>({wch:18}))];
+      XLSX.utils.book_append_sheet(wb,ws,area==='nps'?'NPS':'Inter');
+    });
+
+    // SMP sheet
+    if(fa==='all'||fa==='smp'){
+      const allSmpMo=smpState.months.map(String).filter(Boolean);
+      const smpMonths=fm==='all'?allSmpMo:allSmpMo.filter(mo=>mo===String(fm));
+      if(smpMonths.length){
+        const wsData=[['No.','รายการ',...smpMonths]];
+        SMP_ROWS.forEach(r=>{
+          wsData.push([r.no||'',r.label,...smpMonths.map(mo=>{
+            const rec=smpState.records[mo];
+            return rec&&rec[r.id]?String(rec[r.id].value||''):'';
+          })]);
+        });
+        wsData.push(['','รูปมิเตอร์น้ำ',...smpMonths.map(mo=>smpState.records[mo]?.water?.photo?'มีรูป':'')]);
+        wsData.push(['','รูปมิเตอร์ไฟฟ้า',...smpMonths.map(mo=>smpState.records[mo]?.electric?.photo?'มีรูป':'')]);
+        const ws=XLSX.utils.aoa_to_sheet(wsData);
+        ws['!cols']=[{wch:6},{wch:30},...smpMonths.map(()=>({wch:18}))];
+        XLSX.utils.book_append_sheet(wb,'SMP',ws);
+      }
+    }
+
+    if(!wb.SheetNames.length){
+      showToast('ไม่มีข้อมูล — กรุณากรอกและบันทึกข้อมูลก่อน Export',true);
+      return;
+    }
+    const now=new Date();
+    const fname='meter_export_'+now.getFullYear()+('0'+(now.getMonth()+1)).slice(-2)+('0'+now.getDate()).slice(-2)+'.xlsx';
+    const wbout=XLSX.write(wb,{bookType:'xlsx',type:'array'});
+    const blob=new Blob([wbout],{type:'application/octet-stream'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;a.download=fname;
+    document.body.appendChild(a);a.click();
+    setTimeout(()=>{document.body.removeChild(a);URL.revokeObjectURL(url);},1000);
+    showToast('Export Excel สำเร็จ');
+  }catch(err){
+    console.error('Export error:',err);
+    showToast('Export ผิดพลาด: '+err.message,true);
+  }
+}
+
+// ── SMP ──────────────────────────────────────────
+function renderSmpPage(){const moSel=document.getElementById('smp-mo-selector');if(smpState.months.length>0){moSel.innerHTML=`<select class="mo-select" id="smp-mo-dd">${smpState.months.map(mo=>`<option value="${mo}"${mo===smpState.activeMonth?' selected':''}>${mo}</option>`).join('')}</select>`;document.getElementById('smp-mo-dd').addEventListener('change',e=>{smpState.activeMonth=e.target.value;renderSmpForm();});}else{moSel.innerHTML=`<span style="font-size:12px;color:#9CA3AF">ยังไม่มีเดือน</span>`;}document.getElementById('smp-btn-add-month').onclick=()=>{modalCtx={type:'smp'};document.getElementById('modal-month').classList.add('open');};renderSmpForm();}
+function renderSmpForm(){const body=document.getElementById('smp-form-body');const mo=smpState.activeMonth;if(!mo){body.innerHTML=`<div class="no-mo"><i class="ti ti-calendar-off"></i><span>เพิ่มเดือนเพื่อเริ่มบันทึกข้อมูล</span></div>`;return;}if(!smpState.records[mo])smpState.records[mo]={water:{value:'',photo:null},electric:{value:'',photo:null}};const rec=smpState.records[mo];body.innerHTML=`<div class="smp-grid"><div class="smp-card"><div class="smp-card-header"><div class="smp-icon water"><i class="ti ti-droplet" style="font-size:17px"></i></div><div><div class="smp-card-title">มิเตอร์น้ำ</div><div class="smp-card-sub">${mo}</div></div></div><div class="smp-field"><label>ค่ามิเตอร์น้ำ (ลบ.ม.)</label><input type="text" id="smp-water-val" value="${rec.water.value||''}" placeholder="0.00"/></div><div class="smp-field"><label>รูปถ่าย</label><div class="photo-area">${rec.water.photo?`<img src="${rec.water.photo}" class="photo-preview"/><button class="photo-del" id="smp-water-del">✕</button>`:`<i class="ti ti-camera ph-icon"></i><span class="ph-lbl">คลิกเพื่ออัปโหลดรูป</span>`}<input type="file" accept="image/*" id="smp-water-file"/></div></div></div><div class="smp-card"><div class="smp-card-header"><div class="smp-icon elec"><i class="ti ti-bolt" style="font-size:17px"></i></div><div><div class="smp-card-title">มิเตอร์ไฟฟ้า</div><div class="smp-card-sub">${mo}</div></div></div><div class="smp-field"><label>ค่ามิเตอร์ไฟฟ้า (kWh)</label><input type="text" id="smp-elec-val" value="${rec.electric.value||''}" placeholder="0"/></div><div class="smp-field"><label>รูปถ่าย</label><div class="photo-area">${rec.electric.photo?`<img src="${rec.electric.photo}" class="photo-preview"/><button class="photo-del" id="smp-elec-del">✕</button>`:`<i class="ti ti-camera ph-icon"></i><span class="ph-lbl">คลิกเพื่ออัปโหลดรูป</span>`}<input type="file" accept="image/*" id="smp-elec-file"/></div></div></div></div><div class="save-bar"><button class="btn btn-danger btn-sm" id="smp-del-mo-btn"><i class="ti ti-trash"></i> ลบเดือน "${mo}"</button><button class="btn btn-primary btn-sm" id="smp-save-btn"><i class="ti ti-device-floppy"></i> บันทึกข้อมูล</button></div>`;
+  document.getElementById('smp-water-val').addEventListener('input',e=>{smpState.records[mo].water.value=e.target.value;});
+  document.getElementById('smp-elec-val').addEventListener('input',e=>{smpState.records[mo].electric.value=e.target.value;});
+  function attachFile(fid,key){document.getElementById(fid).addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{smpState.records[mo][key].photo=ev.target.result;renderSmpForm();};r.readAsDataURL(f);});}
+  attachFile('smp-water-file','water');attachFile('smp-elec-file','electric');
+  const wd=document.getElementById('smp-water-del');if(wd)wd.addEventListener('click',e=>{e.stopPropagation();smpState.records[mo].water.photo=null;renderSmpForm();});
+  const ed=document.getElementById('smp-elec-del');if(ed)ed.addEventListener('click',e=>{e.stopPropagation();smpState.records[mo].electric.photo=null;renderSmpForm();});
+  document.getElementById('smp-del-mo-btn').addEventListener('click',()=>{customConfirm('ลบข้อมูลเดือน "'+mo+'"','ข้อมูลมิเตอร์น้ำและไฟฟ้าของเดือนนี้จะถูกลบออกทั้งหมด',async()=>{await deleteSmpMonth(mo);smpState.months=smpState.months.filter(m=>m!==mo);delete smpState.records[mo];smpState.activeMonth=smpState.months.length?smpState.months[smpState.months.length-1]:null;renderSmpPage();showToast('ลบข้อมูลเดือน "'+mo+'" เรียบร้อย');});});
+  document.getElementById('smp-save-btn').addEventListener('click',async()=>{showLoading(true);await saveSmpRecord(mo);showLoading(false);renderSummary();showToast('บันทึกข้อมูล SMP เรียบร้อย ✓');});
+}
+
+// ── RECORD ───────────────────────────────────────
+function renderMeterList(area){const a=state[area];const cont=document.getElementById(area+'-meter-list');cont.innerHTML='';a.meters.forEach((mt,i)=>{const b=document.createElement('button');b.className='mc'+(i===a.active?' active':'');b.textContent=mt.name;b.onclick=()=>{a.active=i;renderMeterList(area);renderForm(area);};cont.appendChild(b);});const add=document.createElement('button');add.className='mc add-mc';add.innerHTML='<i class="ti ti-plus" style="font-size:12px"></i> เพิ่มมิเตอร์';add.onclick=()=>openMeterModal(area);cont.appendChild(add);document.getElementById(area+'-count').textContent=a.meters.length+' มิเตอร์';}
+function renderForm(area){
+  const a=state[area];const mi=a.active;const meter=a.meters[mi];
+  const rows=area==='nps'?NPS_ROWS:area==='inter'?INTER_ROWS:BAY_ROWS;
+  const cont=document.getElementById(area+'-meter-form');
+  const isCustom=!(area==='nps'?NPS_DEF:area==='inter'?INTER_DEF:BAY_DEF).includes(meter.name);const activeMo=meter.activeMonth;
+  let html=`<div class="mnr"><div style="width:30px;height:30px;border-radius:8px;background:#EFF6FF;display:flex;align-items:center;justify-content:center;color:#185FA5;flex-shrink:0"><i class="ti ti-bolt" style="font-size:14px"></i></div><strong>${meter.name}</strong><span class="area-pill">${area==='nps'?'NPS':'Inter'}</span><span style="flex:1"></span>${isCustom?`<button class="btn btn-danger btn-sm" id="btn-del-meter-${area}"><i class="ti ti-trash"></i> ลบมิเตอร์</button>`:''}</div><div class="form-meta"><div><label>ชื่อลูกค้า</label><input type="text" id="meta-customer-${area}" value="${meter.meta.customer||''}" placeholder="ชื่อลูกค้า"/></div><div><label>หมายเลขเครื่อง</label><input type="text" id="meta-serial-${area}" value="${meter.meta.serial||''}" placeholder="หมายเลขเครื่อง"/></div><div><label>มิเตอร์รุ่น</label><input type="text" id="meta-model-${area}" value="${meter.meta.model||''}" placeholder="รุ่นมิเตอร์"/></div><div><label>Feeder</label><input type="text" id="meta-feeder-${area}" value="${meter.meta.feeder||''}" placeholder="Feeder"/></div></div><div class="mo-row"><span class="mo-row-lbl"><i class="ti ti-calendar" style="font-size:13px"></i> เดือนที่บันทึก</span>${meter.months.length>0?`<select class="mo-select" id="mo-dropdown-${area}">${meter.months.map(mo=>`<option value="${mo}"${mo===activeMo?' selected':''}>${mo}</option>`).join('')}</select>`:`<span style="font-size:12px;color:#9CA3AF">ยังไม่มีเดือน</span>`}<button class="btn-add-mo" id="btn-add-month-${area}"><i class="ti ti-calendar-plus" style="font-size:13px"></i> เพิ่มเดือน</button></div>`;
+  if(!activeMo){html+=`<div class="no-mo"><i class="ti ti-calendar-off"></i><span>เพิ่มเดือนเพื่อเริ่มบันทึกข้อมูลมิเตอร์</span></div>`;}
+  else{html+=`<div class="rtbl-wrap"><table class="rtbl"><thead><tr><th style="width:44px">No.</th><th>รายการ</th><th class="r-center">${activeMo}</th></tr></thead><tbody>`;rows.forEach(row=>{if(row.type==='section'){html+=`<tr class="sec-row"><td colspan="3">${row.label}</td></tr>`;return;}const tc=row.type==='sub'?'sub-lbl':row.type==='sub2'?'sub2-lbl':'col-desc';html+=`<tr><td class="col-no">${row.no||''}</td><td class="${tc}">${row.label}</td><td><input type="text" class="row-input" data-rowid="${row.id}" value="${(meter.data[row.id]||{})[activeMo]||''}"/></td></tr>`;});html+=`</tbody></table></div>`;}
+  html+=`<div class="save-bar">${activeMo?`<button class="btn btn-danger btn-sm" id="btn-del-month-${area}"><i class="ti ti-trash"></i> ลบเดือน "${activeMo}"</button>`:''}<button class="btn btn-primary btn-sm" id="btn-save-${area}"><i class="ti ti-device-floppy"></i> บันทึกข้อมูล</button></div>`;
+  cont.innerHTML=html;
+  ['customer','serial','model','feeder'].forEach(k=>{const el=document.getElementById(`meta-${k}-${area}`);if(el)el.addEventListener('input',e=>{state[area].meters[mi].meta[k]=e.target.value;});});
+  const moDD=document.getElementById(`mo-dropdown-${area}`);if(moDD)moDD.addEventListener('change',e=>{state[area].meters[mi].activeMonth=e.target.value;renderForm(area);});
+  const btnAddMo=document.getElementById(`btn-add-month-${area}`);if(btnAddMo)btnAddMo.addEventListener('click',()=>{modalCtx={type:'record',area,mi};document.getElementById('modal-month').classList.add('open');});
+  document.querySelectorAll(`#${area}-meter-form .row-input`).forEach(inp=>{
+    inp.addEventListener('input',e=>{const rid=e.target.dataset.rowid;if(!state[area].meters[mi].data[rid])state[area].meters[mi].data[rid]={};state[area].meters[mi].data[rid][activeMo]=e.target.value;});
+    inp.addEventListener('change',async e=>{const rid=e.target.dataset.rowid;await saveMeterRecord(area,meter.name,activeMo,rid,e.target.value);});
+  });
+  const bdm=document.getElementById(`btn-del-month-${area}`);if(bdm)bdm.addEventListener('click',()=>{const mo=state[area].meters[mi].activeMonth;customConfirm('ลบข้อมูลเดือน "'+mo+'"','ข้อมูลทั้งหมดของเดือนนี้จะถูกลบออก ข้อมูลเดือนอื่นยังคงอยู่',async()=>{await deleteMeterMonth(area,meter.name,mo);const m=state[area].meters[mi];m.months=m.months.filter(x=>x!==mo);Object.keys(m.data).forEach(k=>{if(m.data[k])delete m.data[k][mo];});m.activeMonth=m.months.length?m.months[m.months.length-1]:null;renderForm(area);showToast('ลบข้อมูลเดือน "'+mo+'" เรียบร้อย');});});
+  const bdmt=document.getElementById(`btn-del-meter-${area}`);if(bdmt)bdmt.addEventListener('click',()=>{const name=state[area].meters[mi].name;customConfirm('ลบมิเตอร์ "'+name+'"','มิเตอร์และข้อมูลทั้งหมดจะถูกลบออก',()=>{state[area].meters.splice(mi,1);state[area].active=Math.max(0,mi-1);renderMeterList(area);renderForm(area);});});
+  document.getElementById(`btn-save-${area}`).addEventListener('click',async()=>{showLoading(true);await saveAllMeterData(area,mi);showLoading(false);renderSummary();showToast('บันทึกข้อมูลเรียบร้อย ✓');});
+}
+
+function toggleCustomMonth(val){
+  const customInp=document.getElementById('mm-custom');
+  const yrSel=document.getElementById('mm-year');
+  if(val==='__custom__'){
+    customInp.style.display='block';
+    yrSel.style.display='none';
+    setTimeout(()=>customInp.focus(),50);
+  } else {
+    customInp.style.display='none';
+    yrSel.style.display='block';
+  }
+}
+
+document.getElementById('modal-month-ok').addEventListener('click',async()=>{
+  const ms=document.getElementById('mm-mon');
+  const isCustom=ms.value==='__custom__';
+  let label;
+  if(isCustom){
+    const custom=document.getElementById('mm-custom').value.trim();
+    if(!custom){showToast('กรุณาพิมพ์ชื่อเดือนที่ต้องการ',true);return;}
+    label=custom;
+  } else {
+    const y=document.getElementById('mm-year').value;
+    label=ms.options[ms.selectedIndex].text+' '+y;
+  }
+  if(modalCtx.type==='smp'){
+    if(smpState.months.includes(label)){showToast('เดือนนี้มีอยู่แล้ว',true);return;}
+    smpState.months.push(label);smpState.months.sort();smpState.activeMonth=label;
+    if(!smpState.records[label])smpState.records[label]={water:{value:'',photo:null},electric:{value:'',photo:null}};
+    closeModal('modal-month');renderSmpPage();renderSummary();
+  }else{
+    const{area,mi}=modalCtx;
+    if(state[area].meters[mi].months.includes(label)){showToast('เดือนนี้มีอยู่แล้ว',true);return;}
+    state[area].meters[mi].months.push(label);state[area].meters[mi].months.sort();state[area].meters[mi].activeMonth=label;
+    closeModal('modal-month');renderForm(area);renderSummary();
+  }
+  // reset modal state
+  document.getElementById('mm-mon').value='มกราคม';
+  document.getElementById('mm-custom').value='';
+  toggleCustomMonth('มกราคม');
+});
+function openMeterModal(area){modalCtx={type:'record',area};document.getElementById('modal-meter-inp').value='';document.getElementById('modal-meter').classList.add('open');setTimeout(()=>document.getElementById('modal-meter-inp').focus(),50);}
+function confirmAddMeter(){const{area}=modalCtx;const name=document.getElementById('modal-meter-inp').value.trim();if(!name)return;if(state[area].meters.find(m=>m.name===name)){showToast('ชื่อนี้มีอยู่แล้ว',true);return;}state[area].meters.push(mkMeter(name));state[area].active=state[area].meters.length-1;closeModal('modal-meter');renderMeterList(area);renderForm(area);}
+function switchArea(area){
+  currentArea=area;
+  const tabs=document.querySelectorAll('.area-tab');
+  tabs.forEach((b,i)=>b.classList.toggle('active',i===(area==='nps'?0:area==='inter'?1:2)));
+  document.getElementById('area-nps').style.display=area==='nps'?'':'none';
+  document.getElementById('area-inter').style.display=area==='inter'?'':'none';
+  document.getElementById('area-bay').style.display=area==='bay'?'':'none';
+  renderMeterList(area);renderForm(area);
+}
+// ── LIGHTBOX ─────────────────────────────────────
+function openLightbox(src,caption){
+  const lb=document.getElementById('lightbox');
+  document.getElementById('lb-img').src=src;
+  document.getElementById('lb-caption').textContent=caption||'';
+  const dlBtn=document.getElementById('lb-dl-btn');
+  dlBtn.onclick=()=>{
+    const a=document.createElement('a');
+    a.href=src;
+    a.download='smp_photo_'+Date.now()+'.jpg';
+    a.click();
+  };
+  lb.classList.add('open');
+}
+function closeLightbox(e){
+  if(e&&e.target!==document.getElementById('lightbox')&&e.target!==document.querySelector('.lightbox-close'))return;
+  document.getElementById('lightbox').classList.remove('open');
+  document.getElementById('lb-img').src='';
+}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')document.getElementById('lightbox').classList.remove('open');});
+
+document.getElementById('filter-area-sel').addEventListener('change',renderSummaryContent);
+document.getElementById('filter-month-sel').addEventListener('change',renderSummaryContent);
+document.getElementById('btn-export').addEventListener('click',exportExcel);
+document.getElementById('modal-meter-inp').addEventListener('keydown',e=>{if(e.key==='Enter')confirmAddMeter();if(e.key==='Escape')closeModal('modal-meter');});
+</script>
+</body>
+</html>
